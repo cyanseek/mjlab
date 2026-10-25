@@ -5,6 +5,7 @@ import pytest
 from mjlab.asset_zoo.robots import G1_ACTION_SCALE
 from mjlab.envs.mdp.actions import JointPositionActionCfg
 from mjlab.tasks.registry import list_tasks, load_env_cfg
+from mjlab.tasks.tracking import mdp
 from mjlab.tasks.tracking.mdp import MotionCommandCfg
 
 
@@ -31,6 +32,22 @@ def test_tracking_tasks_have_motion_command(tracking_task_ids: list[str]) -> Non
     assert isinstance(motion_cmd, MotionCommandCfg), (
       f"Task {task_id} motion command is not MotionCommandCfg"
     )
+
+
+def test_tracking_tasks_score_relative_body_velocities(
+  tracking_task_ids: list[str],
+) -> None:
+  """Tracking tasks score body velocities relative to the anchor heading."""
+  for task_id in tracking_task_ids:
+    rewards = load_env_cfg(task_id).rewards
+    assert (
+      rewards["motion_body_lin_vel"].func
+      is mdp.motion_relative_body_linear_velocity_error_exp
+    ), task_id
+    assert (
+      rewards["motion_body_ang_vel"].func
+      is mdp.motion_relative_body_angular_velocity_error_exp
+    ), task_id
 
 
 def test_tracking_tasks_have_self_collision_sensor(

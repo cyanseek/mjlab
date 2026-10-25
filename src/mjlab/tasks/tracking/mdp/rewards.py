@@ -5,7 +5,13 @@ from typing import TYPE_CHECKING, cast
 import torch
 
 from mjlab.sensor import ContactSensor
-from mjlab.utils.lab_api.math import quat_error_magnitude
+from mjlab.utils.lab_api.math import (
+  quat_apply,
+  quat_error_magnitude,
+  quat_inv,
+  quat_mul,
+  yaw_quat,
+)
 
 from .commands import MotionCommand
 
@@ -21,6 +27,18 @@ def _get_body_indexes(
     for i, name in enumerate(command.cfg.body_names)
     if (body_names is None) or (name in body_names)
   ]
+
+
+def _anchor_yaw_delta(command: MotionCommand, num_bodies: int) -> torch.Tensor:
+  """Yaw rotation from the reference anchor to the robot anchor, per body.
+
+  Rotating the reference body velocities by it removes the heading offset
+  between the robot and the reference from the velocity errors.
+  """
+  delta = yaw_quat(
+    quat_mul(command.robot_anchor_quat_w, quat_inv(command.anchor_quat_w))
+  )
+  return delta[:, None, :].expand(-1, num_bodies, -1)
 
 
 def motion_global_anchor_position_error_exp(
@@ -106,6 +124,44 @@ def motion_global_body_angular_velocity_error_exp(
   error = torch.sum(
     torch.square(
       command.body_ang_vel_w[:, body_indexes]
+      - command.robot_body_ang_vel_w[:, body_indexes]
+    ),
+    dim=-1,
+  )
+  return torch.exp(-error.mean(-1) / std**2)
+
+
+def motion_relative_body_linear_velocity_error_exp(
+  env: ManagerBasedRlEnv,
+  command_name: str,
+  std: float,
+  body_names: tuple[str, ...] | None = None,
+) -> torch.Tensor:
+  command = cast(MotionCommand, env.command_manager.get_term(command_name))
+  body_indexes = _get_body_indexes(command, body_names)
+  delta = _anchor_yaw_delta(command, len(body_indexes))
+  error = torch.sum(
+    torch.square(
+      quat_apply(delta, command.body_lin_vel_w[:, body_indexes])
+      - command.robot_body_lin_vel_w[:, body_indexes]
+    ),
+    dim=-1,
+  )
+  return torch.exp(-error.mean(-1) / std**2)
+
+
+def motion_relative_body_angular_velocity_error_exp(
+  env: ManagerBasedRlEnv,
+  command_name: str,
+  std: float,
+  body_names: tuple[str, ...] | None = None,
+) -> torch.Tensor:
+  command = cast(MotionCommand, env.command_manager.get_term(command_name))
+  body_indexes = _get_body_indexes(command, body_names)
+  delta = _anchor_yaw_delta(command, len(body_indexes))
+  error = torch.sum(
+    torch.square(
+      quat_apply(delta, command.body_ang_vel_w[:, body_indexes])
       - command.robot_body_ang_vel_w[:, body_indexes]
     ),
     dim=-1,
