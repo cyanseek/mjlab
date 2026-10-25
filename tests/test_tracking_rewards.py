@@ -7,8 +7,6 @@ import pytest
 import torch
 
 from mjlab.tasks.tracking.mdp import (
-  motion_global_body_angular_velocity_error_exp,
-  motion_global_body_linear_velocity_error_exp,
   motion_relative_body_angular_velocity_error_exp,
   motion_relative_body_linear_velocity_error_exp,
 )
@@ -51,19 +49,23 @@ def test_body_velocity_rewards_ignore_heading_offset(yaw: float):
 
 
 def test_body_velocity_rewards_keep_tilt_offset():
-  """A robot tilted away from the reference loses the same body velocity
-  rewards as with the world-frame terms."""
+  """A robot tilted away from the reference loses body velocity reward as if
+  the velocities were compared in the world frame."""
   env = _offset_reference_env(torch.tensor([math.cos(0.2), math.sin(0.2), 0.0, 0.0]))
-  for relative, world, std in (
+  cmd = env.command_manager.get_term("motion")
+  for func, ref_vel, robot_vel, std in (
     (
       motion_relative_body_linear_velocity_error_exp,
-      motion_global_body_linear_velocity_error_exp,
+      cmd.body_lin_vel_w,
+      cmd.robot_body_lin_vel_w,
       1.0,
     ),
     (
       motion_relative_body_angular_velocity_error_exp,
-      motion_global_body_angular_velocity_error_exp,
+      cmd.body_ang_vel_w,
+      cmd.robot_body_ang_vel_w,
       3.14,
     ),
   ):
-    torch.testing.assert_close(relative(env, "motion", std), world(env, "motion", std))
+    error = torch.sum(torch.square(ref_vel - robot_vel), dim=-1).mean(-1)
+    torch.testing.assert_close(func(env, "motion", std), torch.exp(-error / std**2))

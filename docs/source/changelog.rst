@@ -24,9 +24,11 @@ Changed
 - The tracking task's ``motion_body_lin_vel`` and ``motion_body_ang_vel`` rewards now
   rotate the reference body velocities by the yaw offset between the robot and
   reference anchors, so a heading offset lowers only the ``motion_global_root_ori``
-  term. The new reward functions are ``motion_relative_body_linear_velocity_error_exp``
-  and ``motion_relative_body_angular_velocity_error_exp``. The ``error_body_lin_vel``
-  and ``error_body_ang_vel`` metrics stay in the world frame.
+  term. ``motion_relative_body_linear_velocity_error_exp`` and
+  ``motion_relative_body_angular_velocity_error_exp`` replace the removed
+  ``motion_global_body_linear_velocity_error_exp`` and
+  ``motion_global_body_angular_velocity_error_exp``. The ``error_body_lin_vel`` and
+  ``error_body_ang_vel`` metrics stay in the world frame.
 - Heightfield terrains now lay hfield rows along y and columns along x, as MuJoCo
   expects. Non-square sub-terrains are no longer stretched with flat patches off the
   terrain; square ones are mirrored across x=y for a given seed.
